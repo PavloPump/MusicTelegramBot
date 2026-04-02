@@ -194,6 +194,11 @@ def _handle_inline_music_download(inline_message_id: str, user_id: int, track_id
                 file_id = msg.audio.file_id
                 _set_tg_audio_file_id(track_id, codec, file_id, title, artist)
                 logging.info(f"Получен file_id для трека {track_id}: {file_id[:20]}...")
+                # Удаляем сообщение из ЛС чтобы не дублировать
+                try:
+                    bot.delete_message(user_id, msg.message_id)
+                except Exception:
+                    pass
             except Exception as e:
                 logging.error(f"Не удалось отправить в ЛС user={user_id}: {e}")
                 bot.edit_message_caption(
@@ -264,6 +269,11 @@ def _handle_inline_clip_download(inline_message_id: str, user_id: int, track_id:
                 )
             file_id = msg.video.file_id
             logging.info(f"Получен video file_id для клипа {track_id}")
+            # Удаляем сообщение из ЛС чтобы не дублировать
+            try:
+                bot.delete_message(user_id, msg.message_id)
+            except Exception:
+                pass
         except Exception as e:
             logging.error(f"Не удалось отправить клип в ЛС user={user_id}: {e}")
             bot.edit_message_caption(
@@ -1923,10 +1933,15 @@ def _parse_inline_query(raw_query: str):
     """
     q = raw_query.strip()
     lower = q.lower()
-    if lower.startswith("/music ") or lower.startswith("music "):
-        return "music", q.split(None, 1)[1].strip() if " " in q else ""
-    if lower.startswith("/clip ") or lower.startswith("clip "):
-        return "clip", q.split(None, 1)[1].strip() if " " in q else ""
+    
+    # Проверяем целые слова /music и /clip
+    parts = lower.split(None, 1)
+    if len(parts) >= 2:
+        if parts[0] in ("/music", "music"):
+            return "music", parts[1].strip()
+        if parts[0] in ("/clip", "clip"):
+            return "clip", parts[1].strip()
+    
     return "all", q
 
 
@@ -1955,68 +1970,33 @@ def _build_inline_result(track, mode: str, bot_username: str):
     if thumb_url and not thumb_url.startswith("http"):
         thumb_url = f"https://{thumb_url}"
 
-    if mode == "music" and thumb_url:
-        # Фото обложки → chosen_inline_handler заменит на аудиофайл
-        caption = f"🎵 {_escape_html(track_title)} — {_escape_html(artist_name)}\n"
-        if duration_str:
-            caption += f"⏱ {duration_str}\n"
-        caption += "\n⏳ Загрузка MP3..."
-
-        kb = types.InlineKeyboardMarkup()
-        kb.add(types.InlineKeyboardButton("⏳ Загрузка...", callback_data=f"noop:{track.id}"))
-
-        return types.InlineQueryResultPhoto(
-            id=f"music_{track.id}",
-            photo_url=thumb_url,
-            thumbnail_url=thumb_url,
-            title=f"🎵 {track_title} — {artist_name}",
-            description=f"{desc} • Скачать MP3",
-            caption=caption,
-            parse_mode="HTML",
-            photo_width=300,
-            photo_height=300,
-            reply_markup=kb
-        )
-
-    elif mode == "clip" and thumb_url:
-        # Фото обложки → chosen_inline_handler заменит на видео
-        caption = f"🎬 {_escape_html(track_title)} — {_escape_html(artist_name)}\n"
-        if duration_str:
-            caption += f"⏱ {duration_str}\n"
-        caption += "\n⏳ Загрузка клипа..."
-
-        kb = types.InlineKeyboardMarkup()
-        kb.add(types.InlineKeyboardButton("⏳ Загрузка...", callback_data=f"noop:{track.id}"))
-
-        return types.InlineQueryResultPhoto(
-            id=f"clip_{track.id}",
-            photo_url=thumb_url,
-            thumbnail_url=thumb_url,
-            title=f"🎬 {track_title} — {artist_name}",
-            description=f"{desc} • Скачать клип",
-            caption=caption,
-            parse_mode="HTML",
-            photo_width=300,
-            photo_height=300,
-            reply_markup=kb
-        )
-
-    elif mode in ("music", "clip"):
-        # Нет обложки — fallback на Article с кнопкой
-        kb = types.InlineKeyboardMarkup()
-        if mode == "music":
-            kb.add(types.InlineKeyboardButton("🎵 Скачать MP3", callback_data=f"play:{track.id}"))
-        else:
-            kb.add(types.InlineKeyboardButton("🎬 Скачать клип", callback_data=f"clip:{track.id}"))
+    if mode in ("music", "clip"):
         emoji = "🎵" if mode == "music" else "🎬"
-        msg_text = f"{emoji} <b>{_escape_html(track_title)}</b> — {_escape_html(artist_name)}\n"
+        action = "Скачать MP3" if mode == "music" else "Скачать клип"
+        loading_text = "⏳ Загрузка MP3..." if mode == "music" else "⏳ Загрузка клипа..."
+
+        msg_text = f"{emoji} <b>{_escape_html(track_title)}</b>\n"
+        msg_text += f"👤 {_escape_html(artist_name)}\n"
+        if album:
+            msg_text += f"💿 {_escape_html(album)}\n"
         if duration_str:
-            msg_text += f"⏱ Длительность: {duration_str}\n"
+            msg_text += f"⏱ {duration_str}\n"
+        msg_text += f"\n{loading_text}"
+
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("⏳ Загрузка...", callback_data=f"noop:{track.id}"))
+
+        full_desc = artist_name
+        if album:
+            full_desc += f" • {album}"
+        if duration_str:
+            full_desc += f" • {duration_str}"
+        full_desc += f" • {action}"
 
         return types.InlineQueryResultArticle(
             id=f"{mode}_{track.id}",
             title=f"{emoji} {track_title} — {artist_name}",
-            description=desc,
+            description=full_desc,
             input_message_content=types.InputTextMessageContent(
                 message_text=msg_text, parse_mode="HTML"
             ),
@@ -2025,7 +2005,7 @@ def _build_inline_result(track, mode: str, bot_username: str):
         )
 
     else:
-        # Обычный режим — фото обложки с кнопками
+        # Обычный режим — текстовый список как в поиске
         kb = types.InlineKeyboardMarkup()
         kb.row(
             types.InlineKeyboardButton("🎵 MP3", callback_data=f"play:{track.id}"),
@@ -2033,40 +2013,31 @@ def _build_inline_result(track, mode: str, bot_username: str):
         )
         kb.add(types.InlineKeyboardButton("📝 Текст", callback_data=f"lyrics:{track.id}"))
 
-        # Формируем информативный caption
-        caption = f"🎵 <b>{_escape_html(track_title)}</b>\n"
-        caption += f"👤 {_escape_html(artist_name)}\n"
+        # Формируем текст сообщения как в поиске
+        msg_text = f"🎶 <b>{_escape_html(track_title)}</b> — {_escape_html(artist_name)}\n"
         if album:
-            caption += f"💿 {_escape_html(album)}\n"
+            msg_text += f"💿 Альбом: {_escape_html(album)}\n"
         if duration_str:
-            caption += f"⏱ {duration_str}\n"
-        caption += "\nВыберите действие ↓"
+            msg_text += f"⏱ Длительность: {duration_str}\n"
+        msg_text += "\nВыберите действие ↓"
 
-        if thumb_url:
-            # Есть обложка — показываем фото с кнопками
-            return types.InlineQueryResultPhoto(
-                id=str(track.id),
-                photo_url=thumb_url,
-                thumbnail_url=thumb_url,
-                title=f"🎵 {track_title} — {artist_name}",
-                description=desc,
-                caption=caption,
-                parse_mode="HTML",
-                photo_width=300,
-                photo_height=300,
-                reply_markup=kb
-            )
-        else:
-            # Нет обложки — fallback на текст
-            return types.InlineQueryResultArticle(
-                id=str(track.id),
-                title=f"🎵 {track_title} — {artist_name}",
-                description=desc,
-                input_message_content=types.InputTextMessageContent(
-                    message_text=caption, parse_mode="HTML"
-                ),
-                reply_markup=kb
-            )
+        # Описание для списка в пикере — просто текст как в поиске
+        search_desc = f"{track_title} — {artist_name}"
+        if album:
+            search_desc += f" • {album}"
+        if duration_str:
+            search_desc += f" • {duration_str}"
+
+        return types.InlineQueryResultArticle(
+            id=str(track.id),
+            title=search_desc,
+            description=search_desc,
+            input_message_content=types.InputTextMessageContent(
+                message_text=msg_text, parse_mode="HTML"
+            ),
+            reply_markup=kb,
+            thumbnail_url=thumb_url if thumb_url else None
+        )
 
 
 @bot.inline_handler(lambda query: len(query.query.strip()) >= 2)
@@ -2079,6 +2050,8 @@ def inline_search(inline_query):
     try:
         mode, query_text = _parse_inline_query(inline_query.query)
         user_id = inline_query.from_user.id
+        
+        logging.info(f"Inline query: mode={mode}, query='{query_text}'")
 
         if not query_text or len(query_text) < 2:
             bot.answer_inline_query(
