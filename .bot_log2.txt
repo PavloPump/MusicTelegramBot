@@ -1,0 +1,24 @@
+formats
+2026-03-31 07:25:58,126 - INFO - Trying audio download with query 2/4: #  - S
+QWOZ BAB
+ERROR: [youtube] s5Et7q6oK5Y: Requested format is not available. Use --list-form
+ats for a list of available formats
+2026-03-31 07:26:01,767 - WARNING - Query 2 failed: ERROR: [youtube] s5Et7q6oK5Y
+: Requested format is not available. Use --list-formats for a list of available
+formats
+2026-03-31 07:26:01,767 - INFO - Trying audio download with query 3/4: #
+ERROR: [youtube] s5Et7q6oK5Y: Requested format is not available. Use --list-form
+ats for a list of available formats
+2026-03-31 07:26:05,422 - WARNING - Query 3 failed: ERROR: [youtube] s5Et7q6oK5Y
+: Requested format is not available. Use --list-formats for a list of available
+formats
+2026-03-31 07:26:05,422 - INFO - Trying audio download with query 4/4: SQWOZ BAB
+ERROR: [youtube] hN9WJql3u5A: Requested format is not available. Use --list-form
+ats for a list of available formats
+2026-03-31 07:26:09,081 - WARNING - Query 4 failed: ERROR: [youtube] hN9WJql3u5A
+: Requested format is not available. Use --list-formats for a list of available
+formats
+2026-03-31 07:26:09,081 - ERROR - YouTube audio download error for 'SQWOZ BAB':
+ERROR: [youtube] hN9WJql3u5A: Requested format is not available. Use --list-form
+ats for a list of available formats
+

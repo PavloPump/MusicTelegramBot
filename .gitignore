@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+bot_data.db
+bot_data_backup_*.db
+bot.log*
+*.mp3
+*.mp4
+*.aac
+*.jpg
+*.png
