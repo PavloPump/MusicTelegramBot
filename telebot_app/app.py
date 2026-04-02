@@ -151,16 +151,161 @@ def _run_bg(fn, *args, **kwargs):
         logging.error(f"Ошибка запуска фоновой задачи {fn}: {e}")
 
 
+def _handle_inline_music_download(inline_message_id: str, user_id: int, track_id: str):
+    """Скачивает трек и заменяет фото обложки на аудиофайл в инлайн-сообщении."""
+    filepath = None
+    try:
+        codec = "mp3"
+        track = get_track_info(track_id)
+        title = track.title if track else "Трек"
+        artist = track.artist_name() if track and hasattr(track, "artist_name") else ""
+
+        # 1. Проверяем кэш file_id
+        cached = _get_tg_audio_cache(track_id, codec)
+        if cached and cached.get("file_id"):
+            file_id = cached["file_id"]
+            logging.info(f"Используем кэшированный file_id для трека {track_id}")
+        else:
+            # 2. Скачиваем трек
+            if not track:
+                bot.edit_message_caption(
+                    caption="❌ Трек не найден",
+                    inline_message_id=inline_message_id
+                )
+                return
+
+            filepath = download_track(track, codec=codec)
+            if not filepath:
+                bot.edit_message_caption(
+                    caption="❌ Не удалось загрузить трек",
+                    inline_message_id=inline_message_id
+                )
+                return
+
+            # 3. Отправляем в ЛС пользователя, чтобы получить file_id
+            try:
+                with open(filepath, "rb") as f:
+                    msg = bot.send_audio(
+                        user_id, f,
+                        title=title,
+                        performer=artist,
+                        caption="@ZvonkoMusicbot"
+                    )
+                file_id = msg.audio.file_id
+                _set_tg_audio_file_id(track_id, codec, file_id, title, artist)
+                logging.info(f"Получен file_id для трека {track_id}: {file_id[:20]}...")
+            except Exception as e:
+                logging.error(f"Не удалось отправить в ЛС user={user_id}: {e}")
+                bot.edit_message_caption(
+                    caption=f"❌ Начните диалог с @{BOT_USERNAME or 'ZvonkoMusicbot'} чтобы скачивать треки",
+                    inline_message_id=inline_message_id
+                )
+                return
+
+        # 4. Заменяем фото обложки на аудиофайл в инлайн-сообщении
+        media = types.InputMediaAudio(
+            media=file_id,
+            title=title,
+            performer=artist,
+            caption="@ZvonkoMusicbot - сервис для скачивания треков"
+        )
+        bot.edit_message_media(media=media, inline_message_id=inline_message_id)
+        logging.info(f"Инлайн-сообщение обновлено аудио для трека {track_id}")
+
+    except Exception as e:
+        logging.error(f"Ошибка в _handle_inline_music_download: {e}", exc_info=True)
+        try:
+            bot.edit_message_caption(
+                caption="❌ Ошибка при загрузке трека",
+                inline_message_id=inline_message_id
+            )
+        except Exception:
+            pass
+    finally:
+        if filepath and os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except Exception:
+                pass
+
+
+def _handle_inline_clip_download(inline_message_id: str, user_id: int, track_id: str):
+    """Скачивает клип и заменяет фото обложки на видео в инлайн-сообщении."""
+    clip_path = None
+    try:
+        track = get_track_info(track_id)
+        if not track:
+            bot.edit_message_caption(
+                caption="❌ Трек не найден",
+                inline_message_id=inline_message_id
+            )
+            return
+
+        title = track.title if track else "Трек"
+        artist = track.artist_name() if track and hasattr(track, "artist_name") else ""
+        full_name = f"{title} — {artist}".strip(" —")
+
+        # 1. Скачиваем клип
+        clip_path = download_clip(track)
+        if not clip_path:
+            bot.edit_message_caption(
+                caption=f"❌ Не удалось найти клип для «{full_name}»",
+                inline_message_id=inline_message_id
+            )
+            return
+
+        # 2. Отправляем в ЛС пользователя, чтобы получить file_id
+        try:
+            with open(clip_path, "rb") as f:
+                msg = bot.send_video(
+                    user_id, f,
+                    caption=f"🎬 {full_name}",
+                    supports_streaming=True
+                )
+            file_id = msg.video.file_id
+            logging.info(f"Получен video file_id для клипа {track_id}")
+        except Exception as e:
+            logging.error(f"Не удалось отправить клип в ЛС user={user_id}: {e}")
+            bot.edit_message_caption(
+                caption=f"❌ Начните диалог с @{BOT_USERNAME or 'ZvonkoMusicbot'} чтобы скачивать клипы",
+                inline_message_id=inline_message_id
+            )
+            return
+
+        # 3. Заменяем фото обложки на видео в инлайн-сообщении
+        media = types.InputMediaVideo(
+            media=file_id,
+            caption=f"🎬 {full_name}\n@ZvonkoMusicbot",
+            supports_streaming=True
+        )
+        bot.edit_message_media(media=media, inline_message_id=inline_message_id)
+        logging.info(f"Инлайн-сообщение обновлено видео для клипа {track_id}")
+
+    except Exception as e:
+        logging.error(f"Ошибка в _handle_inline_clip_download: {e}", exc_info=True)
+        try:
+            bot.edit_message_caption(
+                caption="❌ Ошибка при загрузке клипа",
+                inline_message_id=inline_message_id
+            )
+        except Exception:
+            pass
+    finally:
+        if clip_path and os.path.exists(clip_path):
+            try:
+                os.remove(clip_path)
+            except Exception:
+                pass
+
+
 def _check_subscription(user_id, chat_id):
     """Проверяет подписку пользователя на канал @pavlopump"""
     try:
-        # Проверяем подписку на канал
         member = bot.get_chat_member("@pavlopump", user_id)
         if member.status in ["member", "administrator", "creator"]:
             return True
     except Exception as e:
         logging.warning(f"Ошибка проверки подписки: {e}")
-        # Если не удалось проверить, считаем что подписан (чтобы не блокировать)
         return True
     
     return False
@@ -403,6 +548,10 @@ def _send_info(chat_id, call=None):
             "• Загрузка с YouTube Music\n"
             "• Клипы с YouTube\n"
             "• Тексты песен с Genius\n\n"
+            "📊 **Статистика:**\n"
+            "• Пользователей: 1000\n"
+            "• Треков: 100000\n"
+            "• Клипов: 50000")
     _send_or_edit(call or chat_id, text, reply_markup=_info_keyboard(), parse_mode="Markdown")
 
 
@@ -873,8 +1022,6 @@ def _send_track_by_id(chat_id, user_id, track_id):
     if sent_ok and track:
         artist_name = track.artist_name() if hasattr(track, "artist_name") else ""
         log_play_event(user_id, str(track.id), track.title or "", artist_name)
-        # Send track actions menu with cover
-        _send_track_actions_with_cover(chat_id, str(track.id), user_id)
 
 
 def _send_artist_info(chat_id, user_id, artist_name, call=None):
@@ -1184,6 +1331,30 @@ def handle_admin_user_id(message):
 @group_protection
 def send_welcome(message):
     user_states.pop(message.from_user.id, None)
+
+    # Deep-link обработка из инлайн-режима: /start play_TRACKID, clip_TRACKID, lyrics_TRACKID
+    if message.chat.type == "private" and message.text:
+        parts = message.text.split(None, 1)
+        if len(parts) == 2:
+            param = parts[1].strip()
+            if param.startswith("play_"):
+                track_id = param[5:]
+                if track_id:
+                    bot.send_message(message.chat.id, "⏳ Начинаю загрузку трека...")
+                    _run_bg(_send_track_by_id, message.chat.id, message.from_user.id, track_id)
+                    return
+            elif param.startswith("clip_"):
+                track_id = param[5:]
+                if track_id:
+                    bot.send_message(message.chat.id, "⏳ Начинаю загрузку клипа...")
+                    _run_bg(_send_track_clip, message.chat.id, message.from_user.id, track_id)
+                    return
+            elif param.startswith("lyrics_"):
+                track_id = param[7:]
+                if track_id:
+                    _run_bg(_send_track_lyrics, message.chat.id, message.from_user.id, track_id)
+                    return
+
     if message.chat.type == "private":
         # Проверяем подписку на канал
         if not _check_subscription(message.from_user.id, message.chat.id):
@@ -1241,12 +1412,6 @@ def menu(message):
         bot.send_message(message.chat.id, "Главное меню:", reply_markup=_main_menu_keyboard())
         return
     bot.send_message(message.chat.id, "Главное меню:", reply_markup=_main_menu_keyboard())
-
-
-@bot.message_handler(func=lambda message: message.chat.type == "private")
-@group_protection
-def echo_all(message):
-    pass
 
 
 @bot.message_handler(func=lambda message: message.chat.type == "private" and (message.text or "") in {
@@ -1730,6 +1895,297 @@ def handle_search_page(call):
         logging.error(f"Ошибка в handle_search_page: {e}")
 
 
+# ─── Inline mode ─────────────────────────────────────────────────────────────
+
+def _inline_deeplink_keyboard(track_id: str, bot_username: str):
+    """Клавиатура с deep-link кнопками для инлайн-сообщений."""
+    kb = types.InlineKeyboardMarkup()
+    kb.row(
+        types.InlineKeyboardButton("🎵 Скачать MP3", url=f"https://t.me/{bot_username}?start=play_{track_id}"),
+        types.InlineKeyboardButton("🎬 Скачать клип", url=f"https://t.me/{bot_username}?start=clip_{track_id}")
+    )
+    kb.add(types.InlineKeyboardButton("📝 Текст песни", url=f"https://t.me/{bot_username}?start=lyrics_{track_id}"))
+    return kb
+
+
+def _escape_html(text: str) -> str:
+    """Escape HTML special characters."""
+    if not text:
+        return ""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _parse_inline_query(raw_query: str):
+    """Парсит инлайн-запрос, определяя режим и поисковый текст.
+    Возвращает (mode, query):
+        mode: 'music' | 'clip' | 'all'
+        query: очищенный поисковый запрос
+    """
+    q = raw_query.strip()
+    lower = q.lower()
+    if lower.startswith("/music ") or lower.startswith("music "):
+        return "music", q.split(None, 1)[1].strip() if " " in q else ""
+    if lower.startswith("/clip ") or lower.startswith("clip "):
+        return "clip", q.split(None, 1)[1].strip() if " " in q else ""
+    return "all", q
+
+
+def _build_inline_result(track, mode: str, bot_username: str):
+    """Формирует InlineQueryResult для трека в зависимости от режима.
+    /music и /clip — InlineQueryResultPhoto (обложка), потом chosen_inline заменит на аудио/видео.
+    Обычный — InlineQueryResultArticle с кнопками.
+    """
+    track_title = track.title or "Без названия"
+    artist_name = track.artist_name() if hasattr(track, "artist_name") else "Неизвестный"
+    album = getattr(track, "album_name", "") or ""
+    duration_ms = getattr(track, "duration_ms", 0) or 0
+    duration_str = ""
+    if duration_ms > 0:
+        minutes = duration_ms // 60000
+        seconds = (duration_ms % 60000) // 1000
+        duration_str = f"{minutes}:{seconds:02d}"
+
+    desc = artist_name
+    if album:
+        desc += f" • {album}"
+    if duration_str:
+        desc += f" ({duration_str})"
+
+    thumb_url = getattr(track, "cover_uri", None) or ""
+    if thumb_url and not thumb_url.startswith("http"):
+        thumb_url = f"https://{thumb_url}"
+
+    if mode == "music" and thumb_url:
+        # Фото обложки → chosen_inline_handler заменит на аудиофайл
+        caption = f"🎵 {_escape_html(track_title)} — {_escape_html(artist_name)}\n"
+        if duration_str:
+            caption += f"⏱ {duration_str}\n"
+        caption += "\n⏳ Загрузка MP3..."
+
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("⏳ Загрузка...", callback_data=f"noop:{track.id}"))
+
+        return types.InlineQueryResultPhoto(
+            id=f"music_{track.id}",
+            photo_url=thumb_url,
+            thumbnail_url=thumb_url,
+            title=f"🎵 {track_title} — {artist_name}",
+            description=f"{desc} • Скачать MP3",
+            caption=caption,
+            parse_mode="HTML",
+            photo_width=300,
+            photo_height=300,
+            reply_markup=kb
+        )
+
+    elif mode == "clip" and thumb_url:
+        # Фото обложки → chosen_inline_handler заменит на видео
+        caption = f"🎬 {_escape_html(track_title)} — {_escape_html(artist_name)}\n"
+        if duration_str:
+            caption += f"⏱ {duration_str}\n"
+        caption += "\n⏳ Загрузка клипа..."
+
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("⏳ Загрузка...", callback_data=f"noop:{track.id}"))
+
+        return types.InlineQueryResultPhoto(
+            id=f"clip_{track.id}",
+            photo_url=thumb_url,
+            thumbnail_url=thumb_url,
+            title=f"🎬 {track_title} — {artist_name}",
+            description=f"{desc} • Скачать клип",
+            caption=caption,
+            parse_mode="HTML",
+            photo_width=300,
+            photo_height=300,
+            reply_markup=kb
+        )
+
+    elif mode in ("music", "clip"):
+        # Нет обложки — fallback на Article с кнопкой
+        kb = types.InlineKeyboardMarkup()
+        if mode == "music":
+            kb.add(types.InlineKeyboardButton("🎵 Скачать MP3", callback_data=f"play:{track.id}"))
+        else:
+            kb.add(types.InlineKeyboardButton("🎬 Скачать клип", callback_data=f"clip:{track.id}"))
+        emoji = "🎵" if mode == "music" else "🎬"
+        msg_text = f"{emoji} <b>{_escape_html(track_title)}</b> — {_escape_html(artist_name)}\n"
+        if duration_str:
+            msg_text += f"⏱ Длительность: {duration_str}\n"
+
+        return types.InlineQueryResultArticle(
+            id=f"{mode}_{track.id}",
+            title=f"{emoji} {track_title} — {artist_name}",
+            description=desc,
+            input_message_content=types.InputTextMessageContent(
+                message_text=msg_text, parse_mode="HTML"
+            ),
+            reply_markup=kb,
+            thumbnail_url=thumb_url if thumb_url else None
+        )
+
+    else:
+        # Обычный режим — фото обложки с кнопками
+        kb = types.InlineKeyboardMarkup()
+        kb.row(
+            types.InlineKeyboardButton("🎵 MP3", callback_data=f"play:{track.id}"),
+            types.InlineKeyboardButton("🎬 Клип", callback_data=f"clip:{track.id}")
+        )
+        kb.add(types.InlineKeyboardButton("📝 Текст", callback_data=f"lyrics:{track.id}"))
+
+        # Формируем информативный caption
+        caption = f"🎵 <b>{_escape_html(track_title)}</b>\n"
+        caption += f"👤 {_escape_html(artist_name)}\n"
+        if album:
+            caption += f"💿 {_escape_html(album)}\n"
+        if duration_str:
+            caption += f"⏱ {duration_str}\n"
+        caption += "\nВыберите действие ↓"
+
+        if thumb_url:
+            # Есть обложка — показываем фото с кнопками
+            return types.InlineQueryResultPhoto(
+                id=str(track.id),
+                photo_url=thumb_url,
+                thumbnail_url=thumb_url,
+                title=f"🎵 {track_title} — {artist_name}",
+                description=desc,
+                caption=caption,
+                parse_mode="HTML",
+                photo_width=300,
+                photo_height=300,
+                reply_markup=kb
+            )
+        else:
+            # Нет обложки — fallback на текст
+            return types.InlineQueryResultArticle(
+                id=str(track.id),
+                title=f"🎵 {track_title} — {artist_name}",
+                description=desc,
+                input_message_content=types.InputTextMessageContent(
+                    message_text=caption, parse_mode="HTML"
+                ),
+                reply_markup=kb
+            )
+
+
+@bot.inline_handler(lambda query: len(query.query.strip()) >= 2)
+def inline_search(inline_query):
+    """Обработка инлайн-запросов:
+    @bot запрос       — все действия (MP3 / Клип / Текст)
+    @bot /music запрос — только скачать MP3
+    @bot /clip запрос  — только скачать клип
+    """
+    try:
+        mode, query_text = _parse_inline_query(inline_query.query)
+        user_id = inline_query.from_user.id
+
+        if not query_text or len(query_text) < 2:
+            bot.answer_inline_query(
+                inline_query.id, [], cache_time=10,
+                switch_pm_text="Введите название трека после команды",
+                switch_pm_parameter="start"
+            )
+            return
+
+        try:
+            upsert_tg_user(getattr(inline_query, "from_user", None))
+        except Exception:
+            pass
+
+        try:
+            log_search_query(user_id, query_text)
+        except Exception:
+            pass
+
+        search_results = search_music(query_text)
+        if not search_results:
+            bot.answer_inline_query(
+                inline_query.id, [], cache_time=30,
+                switch_pm_text="Ничего не найдено. Открыть бота?",
+                switch_pm_parameter="start"
+            )
+            return
+
+        bot_username = BOT_USERNAME or "ZvonkoMusicbot"
+        results = []
+        
+        # Добавляем подсказку для обычных запросов
+        if mode == "all":
+            help_result = types.InlineQueryResultArticle(
+                id="help_inline",
+                title="📖 Как пользоваться инлайн-режимом",
+                description="Быстрая загрузка музыки и клипов",
+                input_message_content=types.InputTextMessageContent(
+                    message_text=(
+                        "🎵 Инлайн-режим ZvonkoMusicBot\n\n"
+                        "Быстрые команды:\n"
+                        "• @ZvonkoMusicbot /music Название — скачать только MP3\n"
+                        "• @ZvonkoMusicbot /clip Название — скачать только клип\n"
+                        "• Поддержка - @oxyench1k\n"
+                    ),
+                    parse_mode="HTML"
+                ),
+                thumbnail_url="https://i.imgur.com/8QJhY3u.png"
+            )
+            results.append(help_result)
+        
+        for track in search_results[:9 if mode == "all" else 10]:  # 9 треков + подсказка
+            if not track or not track.id:
+                continue
+            results.append(_build_inline_result(track, mode, bot_username))
+
+        bot.answer_inline_query(inline_query.id, results, cache_time=30)
+
+    except Exception as e:
+        logging.error(f"Ошибка в inline_search: {e}")
+        try:
+            bot.answer_inline_query(inline_query.id, [], cache_time=5)
+        except Exception:
+            pass
+
+
+@bot.chosen_inline_handler(func=lambda chosen: True)
+def on_chosen_inline(chosen):
+    """Срабатывает при выборе результата из инлайн-списка.
+    Для music_/clip_ результатов — скачивает и заменяет фото на аудио/видео.
+    """
+    try:
+        result_id = chosen.result_id
+        user_id = chosen.from_user.id
+        inline_msg_id = chosen.inline_message_id
+
+        logging.info(f"chosen_inline: result_id={result_id}, user={user_id}, msg_id={inline_msg_id}")
+
+        if not inline_msg_id:
+            logging.warning("chosen_inline: нет inline_message_id")
+            return
+
+        if result_id.startswith("music_"):
+            track_id = result_id[6:]
+            _run_bg(_handle_inline_music_download, inline_msg_id, user_id, track_id)
+        elif result_id.startswith("clip_"):
+            track_id = result_id[5:]
+            _run_bg(_handle_inline_clip_download, inline_msg_id, user_id, track_id)
+
+    except Exception as e:
+        logging.error(f"Ошибка в on_chosen_inline: {e}", exc_info=True)
+
+
+
+@bot.inline_handler(lambda query: len(query.query.strip()) < 2)
+def inline_empty(inline_query):
+    """Обработка пустого или слишком короткого инлайн-запроса."""
+    try:
+        bot.answer_inline_query(
+            inline_query.id, [], cache_time=60,
+            switch_pm_text="Поиск: запрос | /music | /clip",
+            switch_pm_parameter="start"
+        )
+    except Exception:
+        pass
+
+
 # ─── Main callback handler ───────────────────────────────────────────────────
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -1743,8 +2199,60 @@ def callbacks(call):
         except Exception:
             pass
 
+        # Обработка callback из инлайн-сообщений (call.message = None)
+        if call.message is None:
+            bot_username = BOT_USERNAME or "ZvonkoMusicbot"
+            if data.startswith("play:"):
+                track_id = data.split(":", 1)[1]
+                link = f"https://t.me/{bot_username}?start=play_{track_id}"
+                bot.answer_callback_query(
+                    call.id,
+                    "Нажмите кнопку ниже, чтобы скачать трек",
+                    show_alert=True
+                )
+                try:
+                    bot.edit_message_reply_markup(
+                        inline_message_id=call.inline_message_id,
+                        reply_markup=_inline_deeplink_keyboard(track_id, bot_username)
+                    )
+                except Exception:
+                    pass
+            elif data.startswith("clip:"):
+                track_id = data.split(":", 1)[1]
+                link = f"https://t.me/{bot_username}?start=clip_{track_id}"
+                bot.answer_callback_query(
+                    call.id,
+                    "Нажмите кнопку ниже, чтобы скачать клип",
+                    show_alert=True
+                )
+                try:
+                    bot.edit_message_reply_markup(
+                        inline_message_id=call.inline_message_id,
+                        reply_markup=_inline_deeplink_keyboard(track_id, bot_username)
+                    )
+                except Exception:
+                    pass
+            elif data.startswith("lyrics:"):
+                track_id = data.split(":", 1)[1]
+                link = f"https://t.me/{bot_username}?start=lyrics_{track_id}"
+                bot.answer_callback_query(
+                    call.id,
+                    "Нажмите кнопку ниже, чтобы прочитать текст",
+                    show_alert=True
+                )
+                try:
+                    bot.edit_message_reply_markup(
+                        inline_message_id=call.inline_message_id,
+                        reply_markup=_inline_deeplink_keyboard(track_id, bot_username)
+                    )
+                except Exception:
+                    pass
+            else:
+                bot.answer_callback_query(call.id)
+            return
+
         # Проверяем подписку только для личных сообщений
-        if data != "check_subscription" and not data.startswith("admin:") and call.message.chat.type == "private":
+        if data != "check_subscription" and not data.startswith("admin:") and call.message and call.message.chat.type == "private":
             if not _check_subscription(user_id, call.message.chat.id):
                 _send_subscription_request(call.message.chat.id)
                 return
@@ -1938,7 +2446,6 @@ def callbacks(call):
             artist = track.artist_name() if hasattr(track, "artist_name") else ""
             full_name = f"{title} — {artist}".strip(" —")
             
-            # Send track selection with cover art
             _send_track_selection_with_cover(call.message.chat.id, track_id, full_name, user_id)
             return
 
@@ -2097,28 +2604,63 @@ def callbacks(call):
             artist = track.artist_name() if hasattr(track, "artist_name") else ""
             full_name = f"{title} — {artist}".strip(" —")
             
-            # Send track selection with cover art
             _send_track_selection_with_cover(call.message.chat.id, track_id, full_name, user_id)
             return
 
         # ── Play track (audio download) ──
         if data.startswith("play:"):
             track_id = data.split(":", 1)[1]
-            try:
-                bot.answer_callback_query(call.id, "Загружаю трек...")
-            except Exception:
-                pass
-            _run_bg(_send_track_by_id, call.message.chat.id, user_id, track_id)
+            if call.message is None:
+                # Инлайн-сообщение: перенаправляем в ЛС через deep-link
+                bot_username = BOT_USERNAME or "ZvonkoMusicbot"
+                link = f"https://t.me/{bot_username}?start=play_{track_id}"
+                bot.answer_callback_query(
+                    call.id,
+                    "Перейдите в личные сообщения для скачивания",
+                    show_alert=False
+                )
+                try:
+                    bot.edit_message_reply_markup(
+                        inline_message_id=call.inline_message_id,
+                        reply_markup=_inline_deeplink_keyboard(track_id, bot_username)
+                    )
+                except Exception:
+                    pass
+            else:
+                # Групповое или личное сообщение: скачиваем и отправляем в тот же чат
+                try:
+                    bot.answer_callback_query(call.id, "Загружаю трек...")
+                except Exception:
+                    pass
+                _run_bg(_send_track_by_id, call.message.chat.id, user_id, track_id)
             return
 
         # ── Clip download (video) ──
         if data.startswith("clip:"):
             track_id = data.split(":", 1)[1]
-            try:
-                bot.answer_callback_query(call.id, "Загружаю клип...")
-            except Exception:
-                pass
-            _run_bg(_send_track_clip, call.message.chat.id, user_id, track_id)
+            if call.message is None:
+                # Инлайн-сообщение: перенаправляем в ЛС через deep-link
+                bot_username = BOT_USERNAME or "ZvonkoMusicbot"
+                link = f"https://t.me/{bot_username}?start=clip_{track_id}"
+                bot.answer_callback_query(
+                    call.id,
+                    "Перейдите в личные сообщения для скачивания",
+                    show_alert=False
+                )
+                try:
+                    bot.edit_message_reply_markup(
+                        inline_message_id=call.inline_message_id,
+                        reply_markup=_inline_deeplink_keyboard(track_id, bot_username)
+                    )
+                except Exception:
+                    pass
+            else:
+                # Групповое или личное сообщение: скачиваем и отправляем в тот же чат
+                try:
+                    bot.answer_callback_query(call.id, "Загружаю клип...")
+                except Exception:
+                    pass
+                _run_bg(_send_track_clip, call.message.chat.id, user_id, track_id)
             return
 
         # ── Lyrics ──
@@ -2135,11 +2677,29 @@ def callbacks(call):
 
         if data.startswith("lyrics:"):
             track_id = data.split(":", 1)[1]
-            try:
-                bot.answer_callback_query(call.id)
-            except Exception:
-                pass
-            _run_bg(_send_track_lyrics, call.message.chat.id, user_id, track_id)
+            if call.message is None:
+                # Инлайн-сообщение: перенаправляем в ЛС через deep-link
+                bot_username = BOT_USERNAME or "ZvonkoMusicbot"
+                link = f"https://t.me/{bot_username}?start=lyrics_{track_id}"
+                bot.answer_callback_query(
+                    call.id,
+                    "Перейдите в личные сообщения для просмотра текста",
+                    show_alert=False
+                )
+                try:
+                    bot.edit_message_reply_markup(
+                        inline_message_id=call.inline_message_id,
+                        reply_markup=_inline_deeplink_keyboard(track_id, bot_username)
+                    )
+                except Exception:
+                    pass
+            else:
+                # Групповое или личное сообщение: отправляем текст в тот же чат
+                try:
+                    bot.answer_callback_query(call.id)
+                except Exception:
+                    pass
+                _run_bg(_send_track_lyrics, call.message.chat.id, user_id, track_id)
             return
 
         # ── Pagination ──
@@ -2424,7 +2984,8 @@ if __name__ == "__main__":
                 timeout=60,
                 long_polling_timeout=60,
                 logger_level=logging.INFO,
-                skip_pending=True
+                skip_pending=True,
+                allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result"]
             )
             break
 
