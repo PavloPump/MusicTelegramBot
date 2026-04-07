@@ -217,6 +217,11 @@ def _handle_inline_music_download(inline_message_id: str, user_id: int, track_id
         bot.edit_message_media(media=media, inline_message_id=inline_message_id)
         logging.info(f"Инлайн-сообщение обновлено аудио для трека {track_id}")
 
+        try:
+            log_play_event(user_id, str(track_id), title or "", artist or "")
+        except Exception:
+            pass
+
     except Exception as e:
         logging.error(f"Ошибка в _handle_inline_music_download: {e}", exc_info=True)
         try:
@@ -291,6 +296,11 @@ def _handle_inline_clip_download(inline_message_id: str, user_id: int, track_id:
         bot.edit_message_media(media=media, inline_message_id=inline_message_id)
         logging.info(f"Инлайн-сообщение обновлено видео для клипа {track_id}")
 
+        try:
+            log_play_event(user_id, str(track_id), title or "", artist or "")
+        except Exception:
+            pass
+
     except Exception as e:
         logging.error(f"Ошибка в _handle_inline_clip_download: {e}", exc_info=True)
         try:
@@ -336,6 +346,8 @@ def _send_subscription_request(chat_id):
         reply_markup=kb,
         parse_mode="Markdown"
     )
+
+
 
 
 def _is_admin(user_id: int) -> bool:
@@ -1347,7 +1359,11 @@ def send_welcome(message):
         parts = message.text.split(None, 1)
         if len(parts) == 2:
             param = parts[1].strip()
-            if param.startswith("play_"):
+            if param == "subscription_required":
+                # Показываем сообщение о необходимости подписки
+                _send_subscription_request(message.chat.id)
+                return
+            elif param.startswith("play_"):
                 track_id = param[5:]
                 if track_id:
                     bot.send_message(message.chat.id, "⏳ Начинаю загрузку трека...")
@@ -1862,8 +1878,6 @@ def handle_artist_query(message):
             pass
 
 
-# ─── Search page handler ─────────────────────────────────────────────────────
-
 @bot.callback_query_handler(func=lambda call: call.data == "check_subscription")
 def handle_check_subscription(call):
     """Обработчик кнопки 'Я подписался'"""
@@ -1887,6 +1901,8 @@ def handle_check_subscription(call):
     except Exception as e:
         logging.error(f"Ошибка в handle_check_subscription: {e}")
 
+
+# ─── Search page handler ─────────────────────────────────────────────────────
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("search_page:"))
 def handle_search_page(call):
@@ -1942,7 +1958,8 @@ def _parse_inline_query(raw_query: str):
         if parts[0] in ("/clip", "clip"):
             return "clip", parts[1].strip()
     
-    return "all", q
+    # Обычный запрос теперь работает как /music (прямое скачивание)
+    return "music", q
 
 
 def _build_inline_result(track, mode: str, bot_username: str):
@@ -2043,9 +2060,8 @@ def _build_inline_result(track, mode: str, bot_username: str):
 @bot.inline_handler(lambda query: len(query.query.strip()) >= 2)
 def inline_search(inline_query):
     """Обработка инлайн-запросов:
-    @bot запрос       — все действия (MP3 / Клип / Текст)
-    @bot /music запрос — только скачать MP3
-    @bot /clip запрос  — только скачать клип
+    @bot запрос       — скачать трек
+    @bot /clip запрос  — только клип
     """
     try:
         mode, query_text = _parse_inline_query(inline_query.query)
@@ -2083,27 +2099,7 @@ def inline_search(inline_query):
         bot_username = BOT_USERNAME or "ZvonkoMusicbot"
         results = []
         
-        # Добавляем подсказку для обычных запросов
-        if mode == "all":
-            help_result = types.InlineQueryResultArticle(
-                id="help_inline",
-                title="📖 Как пользоваться инлайн-режимом",
-                description="Быстрая загрузка музыки и клипов",
-                input_message_content=types.InputTextMessageContent(
-                    message_text=(
-                        "🎵 Инлайн-режим ZvonkoMusicBot\n\n"
-                        "Быстрые команды:\n"
-                        "• @ZvonkoMusicbot /music Название — скачать только MP3\n"
-                        "• @ZvonkoMusicbot /clip Название — скачать только клип\n"
-                        "• Поддержка - @oxyench1k\n"
-                    ),
-                    parse_mode="HTML"
-                ),
-                thumbnail_url="https://i.imgur.com/8QJhY3u.png"
-            )
-            results.append(help_result)
-        
-        for track in search_results[:9 if mode == "all" else 10]:  # 9 треков + подсказка
+        for track in search_results[:10]:  # Максимум 10 треков
             if not track or not track.id:
                 continue
             results.append(_build_inline_result(track, mode, bot_username))
@@ -2132,6 +2128,22 @@ def on_chosen_inline(chosen):
 
         if not inline_msg_id:
             logging.warning("chosen_inline: нет inline_message_id")
+            return
+
+        # Проверяем подписку на канал перед скачиванием
+        if not _check_subscription(user_id, user_id):
+            if result_id.startswith("music_"):
+                bot.edit_message_caption(
+                    caption="🚫 **Требуется подписка на канал**\n\n"
+                           "Для скачивания треков необходимо подписаться на канал @pavlopump",
+                    inline_message_id=inline_msg_id
+                )
+            elif result_id.startswith("clip_"):
+                bot.edit_message_caption(
+                    caption="🚫 **Требуется подписка на канал**\n\n"
+                           "Для скачивания клипов необходимо подписаться на канал @pavlopump",
+                    inline_message_id=inline_msg_id
+                )
             return
 
         if result_id.startswith("music_"):

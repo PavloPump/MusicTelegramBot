@@ -1,0 +1,37 @@
+2026-04-06 07:37:42,206 - INFO - ==================================================
+2026-04-06 07:37:42,206 - INFO - Попытка запуска 1/5
+2026-04-06 07:37:42,206 - INFO - ==================================================
+2026-04-06 07:37:42,206 - INFO - Проверка подключения к API Telegram...
+2026-04-06 07:37:42,316 - INFO - Бот авторизован как @ZvonkoMusicbot (ID: 8711527504)
+2026-04-06 07:37:42,352 - INFO - Запуск polling...
+2026-04-06 07:52:58,466 - INFO - Inline query: mode=music, query='/clip'
+2026-04-06 07:52:58,586 - INFO - Spotify search: query='/clip', limit=10
+2026-04-06 07:52:59,693 - INFO - Inline query: mode=clip, query='42'
+2026-04-06 07:52:59,703 - INFO - Spotify search: query='42', limit=10
+2026-04-06 07:53:02,427 - INFO - Inline query: mode=clip, query='р'
+2026-04-06 07:53:03,177 - INFO - Inline query: mode=clip, query='ро'
+2026-04-06 07:53:03,190 - INFO - Spotify search: query='ро', limit=10
+2026-04-06 07:53:04,627 - INFO - Inline query: mode=clip, query='россия42'
+2026-04-06 07:53:04,640 - INFO - Spotify search: query='россия42', limit=10
+2026-04-06 07:53:08,827 - INFO - chosen_inline: result_id=clip_6LDXQ450AyxErjxncyurtd, user=6225875229, msg_id=AgAAAB1RF3MBAAAAk5wDAG7WN7NDlp9B
+2026-04-06 07:53:09,004 - INFO - Trying video download with query 1/3: Slava KPSS - Россия42 official music video
+[download]   0.0% of    6.26MiB at  Unknown B/s ETA Unknown[download]   0.0% of    6.26MiB at  100.28KiB/s ETA 01:03  [download]   0.1% of    6.26MiB at  227.41KiB/s ETA 00:28[download]   0.2% of    6.26MiB at  477.84KiB/s ETA 00:13[download]   0.5% of    6.26MiB at  839.16KiB/s ETA 00:07[download]   1.0% of    6.26MiB at  936.45KiB/s ETA 00:06[download]   2.0% of    6.26MiB at    1.13MiB/s ETA 00:05[download]   4.0% of    6.26MiB at    1.59MiB/s ETA 00:03[download]   8.0% of    6.26MiB at    2.59MiB/s ETA 00:02[download]  16.0% of    6.26MiB at    4.37MiB/s ETA 00:01[download]  31.9% of    6.26MiB at    6.04MiB/s ETA 00:00[download]  63.9% of    6.26MiB at   11.37MiB/s ETA 00:00[download] 100.0% of    6.26MiB at   14.86MiB/s ETA 00:00[download] 100% of    6.26MiB in 00:00:00 at 7.97MiB/s                                                         2026-04-06 07:53:12,693 - INFO - Получен video file_id для клипа 6LDXQ450AyxErjxncyurtd
+2026-04-06 07:53:12,818 - INFO - Инлайн-сообщение обновлено видео для клипа 6LDXQ450AyxErjxncyurtd
+2026-04-06 08:04:35,610 - INFO - Inline query: mode=music, query='пос'
+2026-04-06 08:04:35,623 - INFO - Spotify search: query='пос', limit=10
+2026-04-06 08:04:36,723 - INFO - Inline query: mode=music, query='послед'
+2026-04-06 08:04:36,733 - INFO - Spotify search: query='послед', limit=10
+2026-04-06 08:04:37,300 - INFO - Inline query: mode=music, query='последн'
+2026-04-06 08:04:37,311 - INFO - Spotify search: query='последн', limit=10
+2026-04-06 08:04:38,572 - INFO - Inline query: mode=music, query='последний'
+2026-04-06 08:04:38,583 - INFO - Spotify search: query='последний', limit=10
+2026-04-06 08:04:40,275 - INFO - Inline query: mode=music, query='последний че'
+2026-04-06 08:04:40,286 - INFO - Spotify search: query='последний че', limit=10
+2026-04-06 08:04:41,993 - INFO - Inline query: mode=music, query='последний чело'
+2026-04-06 08:04:42,005 - INFO - Spotify search: query='последний чело', limit=10
+2026-04-06 08:04:42,818 - INFO - Inline query: mode=music, query='последний человек'
+2026-04-06 08:04:42,826 - INFO - Spotify search: query='последний человек', limit=10
+2026-04-06 08:04:45,205 - INFO - chosen_inline: result_id=music_2Mkc6ulKhhHPZdvQugRQoM, user=1515626700, msg_id=AgAAAD3inB______qy8AABbfb_V8Q68I
+2026-04-06 08:04:45,448 - INFO - Trying audio download with query 1/4: SHTRIHCOD - последний человек
+[download]   0.0% of    2.55MiB at  451.34KiB/s ETA 00:05[download]   0.1% of    2.55MiB at    1.04MiB/s ETA 00:02[download]   0.3% of    2.55MiB at    2.13MiB/s ETA 00:01[download]   0.6% of    2.55MiB at    4.13MiB/s ETA 00:00[download]   1.2% of    2.55MiB at    3.45MiB/s ETA 00:00[download]   2.4% of    2.55MiB at    3.91MiB/s ETA 00:00[download]   4.9% of    2.55MiB at    4.95MiB/s ETA 00:00[download]   9.8% of    2.55MiB at    7.60MiB/s ETA 00:00[download]  19.5% of    2.55MiB at   12.20MiB/s ETA 00:00[download]  39.1% of    2.55MiB at   19.06MiB/s ETA 00:00[download]  78.3% of    2.55MiB at   25.80MiB/s ETA 00:00[download] 100.0% of    2.55MiB at    6.89MiB/s ETA 00:00[download] 100% of    2.55MiB in 00:00:00 at 3.24MiB/s                                                         2026-04-06 08:04:53,112 - INFO - Получен file_id для трека 2Mkc6ulKhhHPZdvQugRQoM: CQACAgIAAxkDAAIBkGnT...
+2026-04-06 08:04:53,210 - INFO - Инлайн-сообщение обновлено аудио для трека 2Mkc6ulKhhHPZdvQugRQoM

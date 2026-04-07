@@ -182,7 +182,8 @@ def download_video_clip(title: str, artist: str) -> Optional[str]:
     try:
         ydl_opts = {
             **_COMMON_OPTS,
-            "format": "best[height<=720][ext=mp4]/best[height<=720]/best",
+            "format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+            "merge_output_format": "mp4",
             "outtmpl": output_template,
             "default_search": "ytsearch1",
         }
