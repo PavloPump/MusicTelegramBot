@@ -315,3 +315,99 @@ def get_youtube_video_url(title: str, artist: str) -> Optional[str]:
         logging.error("YouTube URL lookup error: %s", exc)
         cache_set(cache_key, CACHE_NONE)
         return None
+
+
+def download_audio_by_url(url: str, codec: str = "mp3") -> Optional[str]:
+    """Download audio directly from YouTube URL."""
+    if not url:
+        return None
+
+    tmpdir = tempfile.mkdtemp(prefix="ytdl_audio_url_")
+    filename_format = "%(title)s.%(ext)s"
+    output_template = os.path.join(tmpdir, filename_format)
+
+    try:
+        ydl_opts = {
+            **_COMMON_OPTS,
+            "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": codec,
+                }
+            ],
+            "outtmpl": output_template,
+        }
+
+        logging.info(f"Downloading audio from URL: {url}")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        # Find the audio file
+        files = os.listdir(tmpdir)
+        filename = None
+        for file in files:
+            if os.path.isfile(os.path.join(tmpdir, file)) and file.endswith(f".{codec}"):
+                filename = file
+                break
+
+        if not filename:
+            logging.warning(f"No .{codec} file found in {tmpdir} for URL: {url}")
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            return None
+
+        source_path = os.path.join(tmpdir, filename)
+        final = _move_to_tempfile(source_path, f".{codec}")
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return final
+
+    except Exception as exc:
+        logging.error(f"YouTube audio download error for URL '{url}': {exc}")
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return None
+
+
+def download_video_by_url(url: str) -> Optional[str]:
+    """Download video directly from YouTube URL."""
+    if not url:
+        return None
+
+    tmpdir = tempfile.mkdtemp(prefix="ytdl_video_url_")
+    filename_format = "%(title)s.%(ext)s"
+    output_template = os.path.join(tmpdir, filename_format)
+
+    try:
+        ydl_opts = {
+            **_COMMON_OPTS,
+            "format": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+            "merge_output_format": "mp4",
+            "outtmpl": output_template,
+        }
+
+        logging.info(f"Downloading video from URL: {url}")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        # Find the video file
+        files = os.listdir(tmpdir)
+        filename = None
+        for file in files:
+            if os.path.isfile(os.path.join(tmpdir, file)):
+                if file.endswith(".mp4") or file.endswith(".webm") or file.endswith(".mkv"):
+                    filename = file
+                    break
+
+        if not filename:
+            logging.warning(f"No video file found in {tmpdir} for URL: {url}")
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            return None
+
+        source_path = os.path.join(tmpdir, filename)
+        final = _move_to_tempfile(source_path, ".mp4")
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return final
+
+    except Exception as exc:
+        logging.error(f"YouTube video download error for URL '{url}': {exc}")
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return None

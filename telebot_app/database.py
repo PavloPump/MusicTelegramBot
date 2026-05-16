@@ -107,14 +107,34 @@ def init_db() -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS tg_users (
-            user_id INTEGER PRIMARY KEY,
+            user_id TEXT PRIMARY KEY,
             username TEXT,
             first_name TEXT,
             last_name TEXT,
+            photo_url TEXT,
+            email TEXT,
+            auth_provider TEXT DEFAULT 'telegram',
+            created_at TEXT,
             updated_at TEXT
         )
         """
     )
+    
+    # Migrate existing table if needed (add new columns)
+    try:
+        cursor.execute("PRAGMA table_info(tg_users)")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        if "photo_url" not in existing_cols:
+            cursor.execute("ALTER TABLE tg_users ADD COLUMN photo_url TEXT")
+        if "email" not in existing_cols:
+            cursor.execute("ALTER TABLE tg_users ADD COLUMN email TEXT")
+        if "auth_provider" not in existing_cols:
+            cursor.execute("ALTER TABLE tg_users ADD COLUMN auth_provider TEXT DEFAULT 'telegram'")
+        if "created_at" not in existing_cols:
+            cursor.execute("ALTER TABLE tg_users ADD COLUMN created_at TEXT")
+        # Change user_id type to TEXT if it was INTEGER
+    except Exception as e:
+        logging.warning(f"tg_users migration error: {e}")
 
     cursor.execute(
         """
@@ -140,6 +160,22 @@ def init_db() -> None:
     except Exception:
         pass
 
+    # Local users table for login/password authentication
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS local_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            email TEXT,
+            display_name TEXT,
+            created_at TEXT,
+            last_login TEXT
+        )
+        """
+    )
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_local_users_username ON local_users(username)")
+
     conn.commit()
     conn.close()
 
@@ -154,12 +190,22 @@ def upsert_tg_user(user) -> None:
     username = getattr(user, "username", None) or ""
     first_name = getattr(user, "first_name", None) or ""
     last_name = getattr(user, "last_name", None) or ""
+    photo_url = getattr(user, "photo_url", None) or ""
 
     conn = db_connect()
     cur = conn.cursor()
+    now = datetime.now().isoformat()
+    
+    # Check if user exists to preserve created_at
+    cur.execute("SELECT created_at FROM tg_users WHERE user_id = ?", (str(uid),))
+    row = cur.fetchone()
+    created_at = row[0] if row else now
+    
     cur.execute(
-        "INSERT OR REPLACE INTO tg_users (user_id, username, first_name, last_name, updated_at) VALUES (?, ?, ?, ?, ?)",
-        (int(uid), username, first_name, last_name, datetime.now().isoformat()),
+        """INSERT OR REPLACE INTO tg_users 
+            (user_id, username, first_name, last_name, photo_url, auth_provider, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (str(uid), username, first_name, last_name, photo_url, 'telegram', created_at, now),
     )
     conn.commit()
     conn.close()
@@ -246,6 +292,8 @@ def get_user_stats(user_id: int) -> Dict[str, Optional[str]]:
     search_count = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM play_history WHERE user_id = ?", (user_id,))
     play_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(DISTINCT track_id) FROM play_history WHERE user_id = ?", (user_id,))
+    unique_tracks = cur.fetchone()[0]
     cur.execute("SELECT track_title, artist_name FROM play_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,))
     last_row = cur.fetchone()
     conn.close()
@@ -257,10 +305,15 @@ def get_user_stats(user_id: int) -> Dict[str, Optional[str]]:
         last_track = f"{title} — {artist}".strip(" —")
 
     return {
+        "favorites_count": fav_count,
+        "search_count": search_count,
+        "total_plays": play_count,
+        "unique_tracks": unique_tracks,
+        "last_track": last_track,
+        # Legacy keys for backward compatibility
         "favorites": fav_count,
         "searches": search_count,
         "plays": play_count,
-        "last_track": last_track,
     }
 
 
@@ -663,3 +716,98 @@ def admin_send_csv(bot, chat_id: int, filename: str, header: Sequence[str], rows
     file = io.BytesIO(data)
     file.name = filename
     bot.send_document(chat_id, file)
+
+
+def get_user_play_history(user_id, limit: int = 20, offset: int = 0):
+    """Get user's play history with track details.
+    
+    Returns list of dicts with track info and play timestamp.
+    """
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT track_id, track_title, artist_name, created_at 
+           FROM play_history 
+           WHERE user_id = ? 
+           ORDER BY created_at DESC 
+           LIMIT ? OFFSET ?""",
+        (str(user_id), int(limit), int(offset))
+    )
+    rows = cur.fetchall()
+    conn.close()
+    
+    history = []
+    for row in rows:
+        history.append({
+            'track_id': row[0],
+            'track_title': row[1],
+            'artist_name': row[2],
+            'played_at': row[3]
+        })
+    return history
+
+
+# ──────────────────────────────────────────────────────
+#  Local Users (Login/Password)
+# ──────────────────────────────────────────────────────
+
+def create_local_user(username: str, password: str, email: str = '', display_name: str = '') -> bool:
+    """Create a new local user with hashed password."""
+    import hashlib
+    from datetime import datetime
+    
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    conn = db_connect()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute(
+            """INSERT INTO local_users (username, password_hash, email, display_name, created_at) 
+               VALUES (?, ?, ?, ?, ?)""",
+            (username, password_hash, email, display_name, datetime.now().isoformat())
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        conn.close()
+        return False
+
+
+def verify_local_user(username: str, password: str) -> dict:
+    """Verify local user credentials and return user data."""
+    import hashlib
+    from datetime import datetime
+    
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    conn = db_connect()
+    cur = conn.cursor()
+    
+    cur.execute(
+        """SELECT id, username, email, display_name, created_at 
+           FROM local_users 
+           WHERE username = ? AND password_hash = ?""",
+        (username, password_hash)
+    )
+    row = cur.fetchone()
+    
+    if row:
+        user_id, username, email, display_name, created_at = row
+        # Update last login
+        cur.execute(
+            "UPDATE local_users SET last_login = ? WHERE id = ?",
+            (datetime.now().isoformat(), user_id)
+        )
+        conn.commit()
+        conn.close()
+        
+        return {
+            'id': user_id,
+            'username': username,
+            'email': email or '',
+            'display_name': display_name or username,
+            'created_at': created_at
+        }
+    
+    conn.close()
+    return None

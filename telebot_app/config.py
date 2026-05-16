@@ -23,13 +23,27 @@ apihelper.RETRY_DELAY = 1
 apihelper.MAX_RETRIES = 5
 apihelper.ENABLE_MIDDLEWARE = True
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
-SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-GENIUS_CLIENT_ID = os.getenv("GENIUS_CLIENT_ID")
-GENIUS_CLIENT_SECRET = os.getenv("GENIUS_CLIENT_SECRET")
-YANDEX_MUSIC_TOKEN = os.getenv("YANDEX_MUSIC_TOKEN")
-BOT_USERNAME = os.getenv("BOT_USERNAME", "")
+TELEGRAM_TOKEN        = os.getenv("TELEGRAM_TOKEN")
+GENIUS_CLIENT_ID      = os.getenv("GENIUS_CLIENT_ID", "")
+GENIUS_CLIENT_SECRET  = os.getenv("GENIUS_CLIENT_SECRET", "")
+GENIUS_ACCESS_TOKEN   = os.getenv("GENIUS_ACCESS_TOKEN", "")
+BOT_USERNAME          = os.getenv("BOT_USERNAME", "")
+
+# Bot ID for Telegram Login (OIDC). Can be set explicitly or extracted from token
+# Format: 1234567890 (numeric ID)
+TELEGRAM_BOT_ID = os.getenv("TELEGRAM_BOT_ID", "")
+
+# Extract from token if not set explicitly
+if not TELEGRAM_BOT_ID and TELEGRAM_TOKEN and ':' in TELEGRAM_TOKEN:
+    try:
+        TELEGRAM_BOT_ID = TELEGRAM_TOKEN.split(':')[0]
+    except:
+        pass
+
+# Google OAuth
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+WEBAPP_URL           = os.getenv("WEBAPP_URL", "http://localhost:5000")
 
 _admin_ids_raw = os.getenv("ADMIN_IDS", "")
 ADMIN_IDS = {
@@ -45,5 +59,3 @@ BOT_START_TS = time.time()
 def validate_tokens() -> None:
     if not TELEGRAM_TOKEN:
         raise ValueError("TELEGRAM_TOKEN не задан. Установите переменную окружения TELEGRAM_TOKEN")
-    if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
-        raise ValueError("SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET не заданы.")

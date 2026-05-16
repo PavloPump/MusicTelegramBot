@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Zvonko</title>
+  <link rel="stylesheet" href="styles.css?v=7.9">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+<!-- ══════════════════ SIDEBAR ══════════════════ -->
+<aside id="sidebar" class="sidebar">
+  <div class="sidebar-inner">
+
+    <div class="logo">
+      <div class="logo-icon"><i class="fas fa-music"></i></div>
+      <span class="logo-text">Zvonko</span>
+    </div>
+
+    <nav class="nav">
+      <a class="nav-item active" data-page="home">
+        <i class="fas fa-home"></i><span>Главная</span>
+      </a>
+      <a class="nav-item" data-page="search">
+        <i class="fas fa-search"></i><span>Поиск</span>
+      </a>
+      <a class="nav-item auth-only" data-page="favorites">
+        <i class="fas fa-heart"></i><span>Избранное</span>
+      </a>
+      <a class="nav-item" data-page="offline">
+        <i class="fas fa-download"></i><span>Офлайн</span>
+      </a>
+      <a class="nav-item" data-page="profile">
+        <i class="fas fa-user"></i><span>Профиль</span>
+      </a>
+    </nav>
+
+    <div class="auth-box">
+      <div id="auth-login">
+        <button id="btn-login" class="btn-primary">
+          <i class="fas fa-sign-in-alt"></i> Войти
+        </button>
+        <p class="auth-sub">Для сохранения избранного</p>
+      </div>
+      <div id="auth-user" style="display:none">
+        <div class="user-row">
+          <div class="user-ava" id="user-photo-wrap">
+            <img id="user-photo" src="" alt="" style="display:none">
+            <i class="fas fa-user" id="user-icon"></i>
+          </div>
+          <div class="user-meta">
+            <div class="user-name" id="uname">—</div>
+            <button id="btn-logout" class="btn-out">Выйти</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</aside>
+
+<!-- Mobile overlay -->
+<div id="overlay" class="overlay" onclick="closeSidebar()"></div>
+
+<!-- ══════════════════ MAIN ══════════════════ -->
+<div class="layout">
+
+  <!-- Mobile header -->
+  <header class="mob-header">
+    <button class="mob-menu" onclick="openSidebar()"><i class="fas fa-bars"></i></button>
+    <span class="mob-logo">Zvonko</span>
+    <div id="mob-auth-btn">
+      <button id="mob-login-btn" class="mob-tg-btn" onclick="openTgModal()">
+        <i class="fas fa-user"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ─── Pages ─── -->
+  <main class="main" id="main-scroll">
+
+    <!-- HOME -->
+    <div class="page active" id="page-home">
+      <div class="page-hero">
+        <h1>Zvonko</h1>
+        <p>Миллионы треков бесплатно</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="switchPage('search')">
+            <i class="fas fa-search"></i> Поиск
+          </button>
+        </div>
+      </div>
+      
+      <!-- Quick search -->
+      <section class="section">
+        <h2 class="section-title">Недавние поиски</h2>
+        <div id="recent-queries" class="pill-row"></div>
+      </section>
+      
+      <!-- Home sections (charts, playlists) -->
+      <div id="home-sections">
+        <div class="loading-state"><div class="spinner"></div><p>Загрузка чартов...</p></div>
+      </div>
+      
+      <section class="section">
+        <h2 class="section-title">Избранное</h2>
+        <div id="home-favs" class="track-list"></div>
+      </section>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="page" id="page-search">
+      <div class="search-bar-wrap">
+        <i class="fas fa-search search-ico"></i>
+        <input id="search-input" class="search-bar" placeholder="Треки, исполнители, альбомы…" autocomplete="off">
+        <button id="search-clear" class="search-x" style="display:none" onclick="clearSearch()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div id="search-tabs" class="tabs" style="display:none">
+        <button class="tab active" data-tab="tracks">Треки</button>
+        <button class="tab" data-tab="artists">Исполнители</button>
+      </div>
+
+      <div id="search-empty" class="empty-state">
+        <i class="fas fa-music"></i>
+        <p>Начните вводить для поиска</p>
+      </div>
+      <div id="search-loading" class="loading-state" style="display:none">
+        <div class="spinner"></div><p>Поиск…</p>
+      </div>
+
+      <div id="tab-tracks" class="tab-content track-list"></div>
+      <div id="tab-artists" class="tab-content artists-grid" style="display:none"></div>
+    </div>
+
+    <!-- FAVORITES -->
+    <div class="page" id="page-favorites">
+      <div class="page-head">
+        <h1><i class="fas fa-heart"></i> Избранное</h1>
+      </div>
+      <div id="fav-list" class="track-list">
+        <div class="loading-state"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- ARTIST -->
+    <div class="page" id="page-artist">
+      <div id="artist-hero" class="artist-hero"></div>
+      <div id="artist-tracks" class="track-list"></div>
+    </div>
+
+    <!-- OFFLINE -->
+    <div class="page" id="page-offline">
+      <div class="page-head">
+        <h1><i class="fas fa-download"></i> Офлайн</h1>
+        <p style="color:var(--text3);margin-top:4px">Сохранённые треки для прослушивания без интернета</p>
+      </div>
+      <div id="offline-list" class="track-list">
+        <div class="loading-state"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- ALBUM -->
+    <div class="page" id="page-album">
+      <div id="album-hero" class="page-hero">
+        <button class="btn-back" onclick="history.back()"><i class="fas fa-chevron-left"></i></button>
+        <div class="album-hero-info">
+          <div class="album-hero-cover" id="album-hero-cover"></div>
+          <div class="album-hero-details">
+            <h1 id="album-title">—</h1>
+            <p id="album-artist">—</p>
+            <p id="album-year" style="color:var(--text3)">—</p>
+          </div>
+        </div>
+      </div>
+      <div id="album-tracks" class="track-list">
+        <div class="loading-state"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="page" id="page-profile">
+      <div id="profile-guest" style="display:none">
+        <div class="page-hero" style="text-align:center">
+          <h1><i class="fas fa-user-circle"></i> Личный кабинет</h1>
+          <p>Войдите, чтобы видеть свою статистику и управлять аккаунтом</p>
+          <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap">
+            <button class="btn-primary" onclick="openTgModal()">
+              <i class="fas fa-sign-in-alt"></i> Войти
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="profile-authed" style="display:none">
+        <div class="profile-header">
+          <div class="profile-avatar-wrap">
+            <img id="profile-photo" src="" alt="" class="profile-photo" style="display:none">
+            <div id="profile-photo-placeholder" class="profile-photo-placeholder">
+              <i class="fas fa-user"></i>
+            </div>
+          </div>
+          <div class="profile-info">
+            <h1 id="profile-name">—</h1>
+            <p id="profile-email" style="color:var(--text2);font-size:14px"></p>
+            <p id="profile-provider" style="color:var(--text3);font-size:12px;margin-top:4px"></p>
+            <p id="member-since" style="color:var(--text3);font-size:12px;margin-top:4px"></p>
+          </div>
+        </div>
+        
+        <div class="profile-section">
+          <h2 class="section-title" style="margin-bottom:16px">Статистика</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-plays">0</div>
+            <div class="stat-label">Прослушиваний</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-favorites">0</div>
+            <div class="stat-label">В избранном</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-searches">0</div>
+            <div class="stat-label">Поисков</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-unique">0</div>
+            <div class="stat-label">Уникальных треков</div>
+          </div>
+        </div>
+        </div>
+        
+        <section class="section">
+          <h2 class="section-title"><i class="fas fa-history"></i> История прослушиваний</h2>
+          <div id="profile-history" class="track-list">
+            <div class="loading-state"><div class="spinner"></div></div>
+          </div>
+          <div id="profile-history-empty" class="empty-state" style="display:none">
+            <i class="fas fa-music"></i>
+            <p>Нет истории прослушиваний</p>
+          </div>
+        </section>
+        
+        <section class="section" style="margin-top:32px">
+          <h2 class="section-title"><i class="fas fa-cog"></i> Настройки</h2>
+          <div class="settings-list">
+            <a href="https://t.me/oxyench1k" target="_blank" class="setting-item" style="text-decoration:none;color:inherit">
+              <i class="fas fa-life-ring" style="color:var(--accent)"></i>
+              <span>Поддержка</span>
+              <i class="fas fa-external-link-alt" style="color:var(--text3);margin-left:auto;font-size:14px"></i>
+            </a>
+            <button class="setting-item" onclick="logout()">
+              <i class="fas fa-sign-out-alt" style="color:var(--red)"></i>
+              <span>Выйти из аккаунта</span>
+              <i class="fas fa-chevron-right" style="color:var(--text3);margin-left:auto"></i>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- ══════════════════ PLAYER ══════════════════ -->
+<div id="player" class="player" style="display:none">
+  <div class="player-left">
+    <div class="p-cover-wrap">
+      <img id="p-cover" src="" alt="" class="p-cover">
+      <div class="p-cover-placeholder"><i class="fas fa-music"></i></div>
+    </div>
+    <div class="p-info">
+      <div class="p-title marquee" id="p-title">—</div>
+      <div class="p-artist" id="p-artist">—</div>
+    </div>
+    <button class="p-btn" id="p-fav" title="Избранное"><i class="far fa-heart"></i></button>
+  </div>
+
+  <div class="player-center">
+    <div class="p-controls">
+      <button class="p-btn" id="p-prev"><i class="fas fa-step-backward"></i></button>
+      <button class="p-btn p-play" id="p-play"><i class="fas fa-play"></i></button>
+      <button class="p-btn" id="p-next"><i class="fas fa-step-forward"></i></button>
+    </div>
+    <div class="p-loading" id="p-loading" style="display:none">
+      <div class="p-loading-spinner"></div>
+      <span>Загрузка...</span>
+    </div>
+    <div class="p-progress">
+      <span class="p-time" id="p-cur">0:00</span>
+      <div class="p-bar" id="p-bar">
+        <div class="p-bar-fill" id="p-fill"></div>
+        <div class="p-bar-dot" id="p-dot"></div>
+        <input type="range" id="p-seek" min="0" max="1000" value="0" step="1">
+      </div>
+      <span class="p-time" id="p-dur">0:00</span>
+    </div>
+  </div>
+
+  <div class="player-right">
+    <button class="p-btn" id="p-dl" title="Скачать"><i class="fas fa-download"></i></button>
+    <button class="p-btn" id="p-lyrics" title="Текст"><i class="fas fa-align-left"></i></button>
+    <i class="fas fa-volume-up p-vol-ico"></i>
+    <input type="range" id="p-vol" min="0" max="100" value="70" class="p-vol">
+  </div>
+</div>
+
+<!-- Mobile mini-player -->
+<div id="mini-player" class="mini-player" style="display:none" onclick="openFullscreenPlayer()">
+  <div class="mini-progress-bg" id="mini-progress-bg"></div>
+  <img id="mini-cover" src="" class="mini-cover" alt="">
+  <div class="mini-info">
+    <div id="mini-title" class="mini-title">—</div>
+    <div id="mini-artist" class="mini-artist">—</div>
+  </div>
+  <div class="mini-loading" id="mini-loading" style="display:none">
+    <div class="mini-spinner"></div>
+  </div>
+  <button id="mini-play" class="mini-play" onclick="event.stopPropagation();togglePlay()">
+    <i class="fas fa-play"></i>
+  </button>
+  <button class="mini-play" onclick="event.stopPropagation();nextTrack()">
+    <i class="fas fa-step-forward"></i>
+  </button>
+</div>
+
+<!-- ══════════════════ MODALS ══════════════════ -->
+
+<!-- Login/Register Modal -->
+<div id="modal-tg" class="modal-bg" onclick="if(event.target===this)closeTgModal()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeTgModal()"><i class="fas fa-times"></i></button>
+    <div class="modal-head">
+      <i class="fas fa-music" style="color:var(--accent);font-size:40px"></i>
+      <h2 id="auth-title">Вход</h2>
+      <p>Войдите или зарегистрируйтесь</p>
+    </div>
+    
+    <!-- Login Form -->
+    <div id="login-form" style="padding:20px">
+      <input type="text" id="login-username" placeholder="Логин" 
+             style="width:100%;padding:12px;margin-bottom:12px;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;color:var(--text);font-size:14px">
+      <input type="password" id="login-password" placeholder="Пароль" 
+             style="width:100%;padding:12px;margin-bottom:16px;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;color:var(--text);font-size:14px">
+      <button onclick="handleLogin()" class="btn-primary" style="width:100%;margin-bottom:12px">
+        <i class="fas fa-sign-in-alt"></i> Войти
+      </button>
+      <button onclick="showRegisterForm()" class="btn-secondary" style="width:100%">
+        Регистрация
+      </button>
+    </div>
+    
+    <!-- Register Form -->
+    <div id="register-form" style="display:none;padding:20px">
+      <input type="text" id="reg-username" placeholder="Логин (мин. 3 символа)" 
+             style="width:100%;padding:12px;margin-bottom:12px;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;color:var(--text);font-size:14px">
+      <input type="password" id="reg-password" placeholder="Пароль (мин. 6 символов)" 
+             style="width:100%;padding:12px;margin-bottom:12px;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;color:var(--text);font-size:14px">
+      <input type="text" id="reg-display-name" placeholder="Имя (необязательно)" 
+             style="width:100%;padding:12px;margin-bottom:16px;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;color:var(--text);font-size:14px">
+      <button onclick="handleRegister()" class="btn-primary" style="width:100%;margin-bottom:12px">
+        <i class="fas fa-user-plus"></i> Зарегистрироваться
+      </button>
+      <button onclick="showLoginForm()" class="btn-secondary" style="width:100%">
+        Уже есть аккаунт
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Lyrics Overlay (fullscreen, over player) -->
+<div id="lyrics-overlay" class="lyrics-overlay">
+  <div class="lyrics-overlay-header">
+    <button class="lyrics-close-btn" onclick="closeLyrics()">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+    <span class="lyrics-overlay-title">Текст песни</span>
+    <div style="width:40px"></div>
+  </div>
+  <div id="lyrics-track-info" class="lyrics-track-info">
+    <strong id="lyrics-track-title"></strong>
+    <span id="lyrics-track-artist"></span>
+  </div>
+  <div id="lyrics-body" class="lyrics-body-overlay">
+    <div class="loading-state"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ FULLSCREEN PLAYER ══════════════════ -->
+<div id="fullscreen-player" class="fullscreen-player">
+  <!-- Background blur -->
+  <div class="fs-bg">
+    <img id="fs-bg-img" src="" alt="">
+  </div>
+  
+  <!-- Header -->
+  <div class="fs-header">
+    <button class="fs-btn-close" onclick="closeFullscreenPlayer()">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+    <div class="fs-now-playing">Сейчас играет</div>
+    <button class="fs-btn-more" onclick="showPlayerMenu()">
+      <i class="fas fa-ellipsis-h"></i>
+    </button>
+  </div>
+  
+  <!-- Content -->
+  <div class="fs-content">
+    <!-- Cover -->
+    <div class="fs-cover-wrap">
+      <img id="fs-cover" src="" alt="" class="fs-cover">
+      <div id="fs-cover-placeholder" class="fs-cover-placeholder">
+        <i class="fas fa-music"></i>
+      </div>
+    </div>
+    
+    <!-- Track Info -->
+    <div class="fs-track-info">
+      <h2 id="fs-title" class="fs-title">—</h2>
+      <p id="fs-artist" class="fs-artist">—</p>
+    </div>
+    
+    <!-- Progress -->
+    <div class="fs-progress-wrap">
+      <input type="range" id="fs-progress" class="fs-progress" min="0" max="100" value="0" step="0.1">
+      <div class="fs-time">
+        <span id="fs-current-time">0:00</span>
+        <span id="fs-duration">0:00</span>
+      </div>
+    </div>
+    
+    <!-- Controls -->
+    <div class="fs-controls">
+      <button id="fs-shuffle" class="fs-control-btn" onclick="toggleShuffle()">
+        <i class="fas fa-random"></i>
+      </button>
+      <button id="fs-prev" class="fs-control-btn fs-control-main" onclick="prevTrack()">
+        <i class="fas fa-step-backward"></i>
+      </button>
+      <button id="fs-play" class="fs-play-btn" onclick="togglePlay()">
+        <i class="fas fa-play"></i>
+      </button>
+      <button id="fs-next" class="fs-control-btn fs-control-main" onclick="nextTrack()">
+        <i class="fas fa-step-forward"></i>
+      </button>
+      <button id="fs-repeat" class="fs-control-btn" onclick="toggleRepeat()">
+        <i class="fas fa-redo"></i>
+      </button>
+    </div>
+    
+    <!-- Extra Buttons -->
+    <div class="fs-extra">
+      <button id="fs-fav" class="fs-extra-btn" onclick="toggleCurrentFav()">
+        <i class="far fa-heart"></i>
+      </button>
+      <button class="fs-extra-btn" onclick="openLyrics()">
+        <i class="fas fa-align-left"></i>
+        <span>Текст</span>
+      </button>
+      <button class="fs-extra-btn" onclick="openQueue()">
+        <i class="fas fa-list"></i>
+        <span>Очередь</span>
+      </button>
+      <button class="fs-extra-btn" onclick="if(currentId)saveTrackOffline(currentId)">
+        <i class="fas fa-download"></i>
+        <span>Офлайн</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<audio id="audio"></audio>
+
+<!-- Footer -->
+<footer class="app-footer">
+  <div class="footer-content">
+    <p class="footer-text">
+      <i class="fas fa-music"></i> Zvonko Music
+    </p>
+    <p class="footer-support">
+      <i class="fas fa-life-ring"></i> Поддержка: 
+      <a href="https://t.me/oxyench1k" target="_blank" rel="noopener">@oxyench1k</a>
+    </p>
+  </div>
+</footer>
+
+<script src="app.js?v=8.6"></script>
+</body>
+</html>

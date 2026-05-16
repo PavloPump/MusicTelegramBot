@@ -60,6 +60,7 @@ from .music_service import (
     search_music,
 )
 from .state import run_async, user_states
+from .web_app import start_web_server_thread
 
 
 setup_logging()
@@ -2964,6 +2965,9 @@ if __name__ == "__main__":
             except Exception as e:
                 logging.warning(f"Не удалось удалить вебхук: {e}")
 
+            logging.info("Запуск веб-сервера на порту 5000...")
+            start_web_server_thread(host='0.0.0.0', port=5000)
+            
             logging.info("Запуск polling...")
             bot.infinity_polling(
                 timeout=60,
