@@ -10,5 +10,8 @@ bot.log*
 *.mp3
 *.mp4
 *.aac
+*.m4a
 *.jpg
 *.png
+audio_cache/
+zvonko.db
